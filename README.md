@@ -8,6 +8,24 @@ Distributed task scheduler is a Java implementation for handling tasks in distri
 3. Configurable polling: Polling delay can be configured to tweak execution precision.
 4. Multiple schedulers support: You can create multiple schedulers in the same application.
 
+more details..
+  https://github.com/ran-jit/distributed-task-scheduler/wiki
+
+
+## Scheduler creation properties
+	 * @param String schedulerName - Scheduler name
+	 * @param Integer pollingTreadSize - Polling thread size
+	 * @param Integer pollingDelayMillis - Polling delay in milliseconds
+	 * @param Integer processDataCount - Process data count
+	 * @param Class taskTriggerListener - Task trigger action listener class
+
+	 * @param taskSchedulerProperties
+	          1. @default: Scheduler configuration properties (by default the properties are loaded from "task-scheduler.properties" file from internal resources)
+	          2.  @param String taskSchedulerPropertiesFilePath - Scheduler properties file path
+	          3.  @param Properties taskSchedulerProperties - Scheduler properties
+
+	 * refer --> "src/main/resources/task-scheduler.properties"
+
 
 ## Interfaces:
 
