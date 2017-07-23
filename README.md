@@ -37,3 +37,14 @@ This is the interface you must implement to actually run the tasks once they are
 
 ### Note:
 Examples are committed in test package.
+
+
+## Tasks tracker:
+Configure the below mentioned properties to enabled Tracker GUI.
+#### Properties:
+    #- set true to enable tracker (default: false)
+        tracker.gui.enabled=true
+    #- tracker gui port number (default: 8060)
+        tracker.gui.port=8060
+
+Tracker GUI is enabled in, http://localhost:8060/tracker
