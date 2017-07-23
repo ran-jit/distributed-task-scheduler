@@ -1,5 +1,6 @@
 package task.scheduler.impl;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
@@ -230,9 +231,12 @@ public class TaskSchedulerImpl implements TaskScheduler {
 						this.schedulerName, processDataOffset, this.processDataCount, this.pollingDelayMillis,
 						this.pollingTreadSize);
 
+				this.pollingThreads = (this.pollingThreads == null) ? new ArrayList<Runnable>() : this.pollingThreads;
 				this.pollingThreads.add(worker);
 				this.threadPool.execute(worker);
 			}
+
+			this.dataCache.sAdd(TaskSchedulerConstants.TASK_SCHEDULER_INFO, this.schedulerName);
 		} catch (Exception ex) {
 			log.error("Error while starting Task scheduler", ex);
 		}
@@ -247,7 +251,7 @@ public class TaskSchedulerImpl implements TaskScheduler {
 	/** {@inheritDoc} */
 	@Override
 	public void schedule(Object data, Date triggerTime) {
-		this.dataCache.add(this.schedulerName, data, triggerTime.getTime());
+		this.dataCache.zAdd(this.schedulerName, data, triggerTime.getTime());
 	}
 
 	/** {@inheritDoc} */
@@ -290,6 +294,7 @@ public class TaskSchedulerImpl implements TaskScheduler {
 				int processDataOffset, int processDataCount, int pollingDelayMillis, int pollingTreadSize) {
 
 			this.schedulerName = schedulerName;
+			this.pollingTreadSize = pollingTreadSize;
 			this.processDataCount = processDataCount;
 			this.processDataOffset = processDataOffset;
 			this.pollingDelayMillis = pollingDelayMillis;
@@ -336,14 +341,13 @@ public class TaskSchedulerImpl implements TaskScheduler {
 		 * @return
 		 */
 		private boolean triggerTasks() {
-			Set<Object> tasks = this.dataCache.get(this.schedulerName, 0, System.currentTimeMillis(),
+			Set<Object> tasks = this.dataCache.zGet(this.schedulerName, 0, System.currentTimeMillis(),
 					this.processDataOffset, this.processDataCount);
 
 			if (tasks != null && !tasks.isEmpty()) {
 				for (Object task : tasks) {
-					Runnable worker = new TaskTriggerListenerThreadImpl(this.dataCache, this.taskTriggerListener,
-							this.schedulerName, task);
-
+					Runnable worker = new TaskTriggerListenerThreadImpl(this.dataCache, this.taskTriggerListener, this.schedulerName, task);
+					this.pollingThreads = (this.pollingThreads == null) ? new ArrayList<Runnable>() : this.pollingThreads;
 					this.pollingThreads.add(worker);
 					this.threadPool.execute(worker);
 				}
@@ -395,9 +399,9 @@ public class TaskSchedulerImpl implements TaskScheduler {
 
 				tries++;
 				try {
-					if (this.dataCache.exists(this.schedulerName, this.task)) {
+					if (this.dataCache.zExists(this.schedulerName, this.task)) {
 						this.taskTriggerListener.execute(this.task);
-						this.dataCache.remove(this.schedulerName, this.task);
+						this.dataCache.zRemove(this.schedulerName, this.task);
 					}
 					sucess = true;
 				} catch (Exception ex) {
@@ -413,10 +417,10 @@ public class TaskSchedulerImpl implements TaskScheduler {
 		 * method to process the failed task
 		 */
 		private void processFailedTask() {
-			if (this.dataCache.exists(this.schedulerName, this.task)) {
-				Double score = this.dataCache.getScore(this.schedulerName, this.task);
-				this.dataCache.add(this.schedulerName.concat(TaskSchedulerConstants.TASK_SCHEDULER_DLQ_EXTN), this.task, score);
-				this.dataCache.remove(this.schedulerName, this.task);
+			if (this.dataCache.zExists(this.schedulerName, this.task)) {
+				Double score = this.dataCache.zScore(this.schedulerName, this.task);
+				this.dataCache.zAdd(this.schedulerName.concat(TaskSchedulerConstants.TASK_SCHEDULER_DLQ_EXTN), this.task, score);
+				this.dataCache.zRemove(this.schedulerName, this.task);
 			}
 		}
 

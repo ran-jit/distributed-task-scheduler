@@ -27,6 +27,7 @@ import redis.clients.jedis.exceptions.JedisClusterMaxRedirectionsException;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 import task.scheduler.constants.TaskSchedulerConstants;
 import task.scheduler.data.cache.DataCache;
+import task.scheduler.gui.TaskTrackerHandler;
 
 /**
  * Distributed Task scheduler implementation.
@@ -56,32 +57,50 @@ public class RedisDataCache implements DataCache {
 
 	/** {@inheritDoc} */
 	@Override
-	public void add(String key, Object data, double score) {
-		dataCache.add(parseDataCacheKey(key), data, score);
+	public void sAdd(String key, String value) {
+		dataCache.sAdd(parseDataCacheKey(key), value);
 	}
 
 	/** {@inheritDoc} */
 	@Override
-	public Boolean exists(String key, Object data) {
-		return dataCache.exists(parseDataCacheKey(key), data);
+	public Set<String> sMembers(String key) {
+		return dataCache.sMembers(parseDataCacheKey(key));
 	}
 
 	/** {@inheritDoc} */
 	@Override
-	public Long remove(String key, Object... data) {
-		return dataCache.remove(parseDataCacheKey(key), data);
+	public void zAdd(String key, Object data, double score) {
+		dataCache.zAdd(parseDataCacheKey(key), data, score);
 	}
 
 	/** {@inheritDoc} */
 	@Override
-	public Set<Object> get(String key, double minScore, double maxScore, int offset, int count) {
-		return dataCache.get(parseDataCacheKey(key), minScore, maxScore, offset, count);
+	public Boolean zExists(String key, Object data) {
+		return dataCache.zExists(parseDataCacheKey(key), data);
 	}
 
 	/** {@inheritDoc} */
 	@Override
-	public Double getScore(String key, Object data) {
-		return dataCache.getScore(parseDataCacheKey(key), data);
+	public Long zRemove(String key, Object... data) {
+		return dataCache.zRemove(parseDataCacheKey(key), data);
+	}
+
+	/** {@inheritDoc} */
+	@Override
+	public Set<Object> zGet(String key, double minScore, double maxScore, int offset, int count) {
+		return dataCache.zGet(parseDataCacheKey(key), minScore, maxScore, offset, count);
+	}
+
+	/** {@inheritDoc} */
+	@Override
+	public Double zScore(String key, Object data) {
+		return dataCache.zScore(parseDataCacheKey(key), data);
+	}
+
+	/** {@inheritDoc} */
+	@Override
+	public Long zCount(String key) {
+		return dataCache.zCount(parseDataCacheKey(key));
 	}
 
 	/**
@@ -90,7 +109,7 @@ public class RedisDataCache implements DataCache {
 	 * @param key
 	 * @return
 	 */
-	private String parseDataCacheKey(String key) {
+	public static String parseDataCacheKey(String key) {
 		return key.replaceAll("\\s", "_");
 	}
 
@@ -102,7 +121,9 @@ public class RedisDataCache implements DataCache {
 	 */
 	@SuppressWarnings("unchecked")
 	private void initialize(Properties properties, String filePath) {
-
+		if (dataCache != null) {
+			return;
+		}
 		properties = (properties == null) ? loadProperties(filePath) : properties;
 
 		boolean clusterEnabled = Boolean.valueOf(properties.getProperty(RedisConstants.CLUSTER_ENABLED, RedisConstants.DEFAULT_CLUSTER_ENABLED));
@@ -123,6 +144,13 @@ public class RedisDataCache implements DataCache {
 		} else {
 			dataCache = new RedisCacheUtil(((List<String>) nodes).get(0),
 					Integer.parseInt(((List<String>) nodes).get(1)), password, database, timeout, getPoolConfig(properties));
+		}
+
+		boolean guiEnabled = Boolean.valueOf(properties.getProperty(TaskSchedulerConstants.IS_GUI_ENABLED, RedisConstants.DEFAULT_CLUSTER_ENABLED));
+		if (guiEnabled) {
+			int port = Integer.parseInt(properties.getProperty(TaskSchedulerConstants.GUI_PORT,
+					String.valueOf(TaskSchedulerConstants.DEFAULT_SCHEDULER_GUI_PORT)));
+			new TaskTrackerHandler().startServer(port);
 		}
 	}
 
@@ -243,7 +271,49 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public void add(String key, Object data, double score) {
+		public void sAdd(String key, String value) {
+			int tries = 0;
+			boolean sucess = false;
+			do {
+				tries++;
+				try {
+					Jedis jedis = pool.getResource();
+					jedis.sadd(key, value);
+					jedis.close();
+					sucess = true;
+				} catch (JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries)
+						throw ex;
+				}
+			} while (!sucess && tries <= numRetries);
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public Set<String> sMembers(String key) {
+			int tries = 0;
+			boolean sucess = false;
+			Set<String> retVal = null;
+			do {
+				tries++;
+				try {
+					Jedis jedis = pool.getResource();
+					retVal = jedis.smembers(key);
+					jedis.close();
+					sucess = true;
+				} catch (JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries)
+						throw ex;
+				}
+			} while (!sucess && tries <= numRetries);
+			return retVal;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public void zAdd(String key, Object data, double score) {
 			int tries = 0;
 			boolean sucess = false;
 			do {
@@ -263,7 +333,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Boolean exists(String key, Object data) {
+		public Boolean zExists(String key, Object data) {
 			int tries = 0;
 			boolean sucess = false;
 			boolean retVal = false;
@@ -285,7 +355,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Long remove(String key, Object... data) {
+		public Long zRemove(String key, Object... data) {
 			int tries = 0;
 			Long retVal = null;
 			boolean sucess = false;
@@ -307,7 +377,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Set<Object> get(String key, double minScore, double maxScore, int offset, int count) {
+		public Set<Object> zGet(String key, double minScore, double maxScore, int offset, int count) {
 			int tries = 0;
 			boolean sucess = false;
 			Set<String> retVal = null;
@@ -329,7 +399,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Double getScore(String key, Object data) {
+		public Double zScore(String key, Object data) {
 			int tries = 0;
 			boolean sucess = false;
 			Double retVal = null;
@@ -338,6 +408,29 @@ public class RedisDataCache implements DataCache {
 				try {
 					Jedis jedis = pool.getResource();
 					retVal = jedis.zscore(key, SerializationUtil.serialize(data));
+					jedis.close();
+					sucess = true;
+				} catch (JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries) {
+						throw ex;
+					}
+				}
+			} while (!sucess && tries <= numRetries);
+			return retVal;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public Long zCount(String key) {
+			int tries = 0;
+			boolean sucess = false;
+			Long retVal = null;
+			do {
+				tries++;
+				try {
+					Jedis jedis = pool.getResource();
+					retVal = jedis.zcount(key, 0, Double.MAX_VALUE);
 					jedis.close();
 					sucess = true;
 				} catch (JedisConnectionException ex) {
@@ -373,7 +466,49 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public void add(String key, Object data, double score) {
+		public void sAdd(String key, String value) {
+			int tries = 0;
+			boolean sucess = false;
+			do {
+				tries++;
+				try {
+					cluster.sadd(key, value);
+					sucess = true;
+				} catch (JedisClusterMaxRedirectionsException | JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries) {
+						throw ex;
+					}
+					waitforFailover();
+				}
+			} while (!sucess && tries <= numRetries);
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public Set<String> sMembers(String key) {
+			int tries = 0;
+			boolean sucess = false;
+			Set<String> retVal = null;
+			do {
+				tries++;
+				try {
+					retVal = cluster.smembers(key);
+					sucess = true;
+				} catch (JedisClusterMaxRedirectionsException | JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries) {
+						throw ex;
+					}
+					waitforFailover();
+				}
+			} while (!sucess && tries <= numRetries);
+			return retVal;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public void zAdd(String key, Object data, double score) {
 			int tries = 0;
 			boolean sucess = false;
 			do {
@@ -393,7 +528,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Boolean exists(String key, Object data) {
+		public Boolean zExists(String key, Object data) {
 			int tries = 0;
 			boolean sucess = false;
 			boolean retVal = false;
@@ -415,7 +550,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Long remove(String key, Object... data) {
+		public Long zRemove(String key, Object... data) {
 			int tries = 0;
 			Long retVal = null;
 			boolean sucess = false;
@@ -437,7 +572,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Set<Object> get(String key, double minScore, double maxScore, int offset, int count) {
+		public Set<Object> zGet(String key, double minScore, double maxScore, int offset, int count) {
 			int tries = 0;
 			boolean sucess = false;
 			Set<String> retVal = null;
@@ -459,7 +594,7 @@ public class RedisDataCache implements DataCache {
 
 		/** {@inheritDoc} */
 		@Override
-		public Double getScore(String key, Object data) {
+		public Double zScore(String key, Object data) {
 			int tries = 0;
 			boolean sucess = false;
 			Double retVal = null;
@@ -467,6 +602,28 @@ public class RedisDataCache implements DataCache {
 				tries++;
 				try {
 					retVal = cluster.zscore(key, SerializationUtil.serialize(data));
+					sucess = true;
+				} catch (JedisClusterMaxRedirectionsException | JedisConnectionException ex) {
+					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);
+					if (tries == numRetries) {
+						throw ex;
+					}
+					waitforFailover();
+				}
+			} while (!sucess && tries <= numRetries);
+			return retVal;
+		}
+
+		/** {@inheritDoc} */
+		@Override
+		public Long zCount(String key) {
+			int tries = 0;
+			boolean sucess = false;
+			Long retVal = null;
+			do {
+				tries++;
+				try {
+					retVal = cluster.zcount(key, 0, Double.MAX_VALUE);
 					sucess = true;
 				} catch (JedisClusterMaxRedirectionsException | JedisConnectionException ex) {
 					log.error(RedisConstants.CONN_FAILED_RETRY_MSG + tries);

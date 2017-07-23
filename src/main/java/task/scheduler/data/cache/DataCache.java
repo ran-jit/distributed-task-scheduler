@@ -13,13 +13,29 @@ import java.util.Set;
 public interface DataCache {
 
 	/**
+	 * To add task scheduler name to data-cache
+	 * 
+	 * @param key
+	 * @param value
+	 */
+	void sAdd(String key, String value);
+
+	/**
+	 * To list task scheduler names from data-cache
+	 * 
+	 * @param key
+	 * @return
+	 */
+	Set<String> sMembers(String key);
+
+	/**
 	 * To add data with score to data-cache
 	 * 
 	 * @param key
 	 * @param data
 	 * @param score
 	 */
-	void add(String key, Object data, double score);
+	void zAdd(String key, Object data, double score);
 
 	/**
 	 * To check data exists in data-cache
@@ -28,7 +44,7 @@ public interface DataCache {
 	 * @param data
 	 * @return
 	 */
-	Boolean exists(String key, Object data);
+	Boolean zExists(String key, Object data);
 
 	/**
 	 * To remove data from data-cache
@@ -37,7 +53,7 @@ public interface DataCache {
 	 * @param data
 	 * @return
 	 */
-	Long remove(String key, Object... data);
+	Long zRemove(String key, Object... data);
 
 	/**
 	 * To get data from data-cache based on score, offset and count
@@ -49,7 +65,7 @@ public interface DataCache {
 	 * @param count
 	 * @return
 	 */
-	Set<Object> get(String key, double minScore, double maxScore, int offset, int count);
+	Set<Object> zGet(String key, double minScore, double maxScore, int offset, int count);
 
 	/**
 	 * To get data score from data-cache
@@ -58,5 +74,13 @@ public interface DataCache {
 	 * @param data
 	 * @return
 	 */
-	Double getScore(String key, Object data);
+	Double zScore(String key, Object data);
+
+	/**
+	 * To get data count from data-cache
+	 * 
+	 * @param key
+	 * @return
+	 */
+	Long zCount(String key);
 }
