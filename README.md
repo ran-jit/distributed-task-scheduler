@@ -21,8 +21,8 @@ more details..
 
 	 * @param taskSchedulerProperties
 	          1. @default: Scheduler configuration properties (by default the properties are loaded from "task-scheduler.properties" file from internal resources)
-	          2.  @param String taskSchedulerPropertiesFilePath - Scheduler properties file path
-	          3.  @param Properties taskSchedulerProperties - Scheduler properties
+	          2. @param String taskSchedulerPropertiesFilePath - Scheduler properties file path
+	          3. @param Properties taskSchedulerProperties - Scheduler properties
 
 	 * refer --> "src/main/resources/task-scheduler.properties"
 
