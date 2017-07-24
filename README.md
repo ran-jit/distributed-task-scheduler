@@ -4,7 +4,7 @@ Distributed Scheduler using Redis data cache.
 Distributed task scheduler is a Java implementation for handling tasks in distributed environment using Redis. It has the following features:
 
 1. Usable in a distributed environment: It uses Redis data cache for effectively preventing a task to be run on multiple instances of the same application.
-2. Configurable consumers: Polling consumers can be configured per queue.
+2. Configurable consumers: Polling consumers can be configured per scheduler.
 3. Configurable polling: Polling delay can be configured to tweak execution precision.
 4. Multiple schedulers support: You can create multiple schedulers in the same application.
 
